@@ -1,6 +1,6 @@
 # YINYU 当前开发状态
 
-更新时间：2026-09-04
+更新时间：2026-09-05
 
 本文件只记录已经核对过的当前事实、已知缺口和下一任务入口。历史计划、阶段审查和现场流水放在 `docs/archive/implementation-records/`，不得用来判断当前代码或服务器状态。
 
@@ -13,8 +13,8 @@
 | 当前生产基线 | release `docker-provisioning-inventory-3e5526dc-20260904T093342Z`，提交 `3e5526dc1ce336ac5545faacd49a9c0d1ec7ab58`，数据库 migration head `20260816192540_TeamLabCapabilityClosure` |
 | 应用回退基线 | 上一独立 release `docker-provisioning-converged-77ae1757-20260904T091328Z`，提交 `77ae175785e358b6b3739fe8cd6118d3039b24fe`；仅用于启动失败时紧急切回，回退后本机 Docker inventory 标签缺口会重新存在，必须暂停新实例创建；数据回滚点见本文件第 5 节 |
 | 当前开发基线 | `main`；Phase 09 TeamLab networking、迁移恢复和 Game 23 Docker provisioning 修复均已合入；新任务从最新 `origin/main` 创建 `codex/<task-name>` 功能分支 |
-| 正式工作区 | `D:\Work\newGZCTF` |
-| 工作树结构 | 主 worktree 为 `D:\Work\newGZCTF`；并行任务按 `AGENTS.md` 使用独立 worktree，不将服务器目录作为代码基线 |
+| 正式工作区 | 本次工作机为 `D:\newGZCTF` |
+| 工作树结构 | 本次工作机只保留一个活动 worktree，分支为 `codex/practice-deployment-validation`；并行任务按 `AGENTS.md` 使用独立 worktree，不将服务器目录作为代码基线 |
 | 技术栈 | .NET 10、ASP.NET Core、EF Core、PostgreSQL、Redis、React 19、TypeScript、Vite、pnpm |
 
 开始新任务必须重新执行 `git fetch origin --prune`、读取 `git status` 和 `git log`。本表中的 SHA 不替代实时 Git 状态。
@@ -101,7 +101,7 @@
 
 ## 7. 新任务起点
 
-练习模块当前整合候选及验证范围见 [2026-09-05 整理记录](handoffs/2026-09-05-practice-consolidation.md)。该候选不改变已发布 migration，不代表生产部署完成。
+练习模块增量见 [2026-09-05 整理记录](handoffs/2026-09-05-practice-consolidation.md)。用户已明确关闭 PR #8、不合并，改由独立分支交付。当前交接入口为 [分支与服务器验证交接](handoffs/2026-09-05-pr8-branch-deployment-handoff.md)：分支已保存至 `csc-dsc/newGZCTF`，当前凭据对主仓库无推送权限。10.24 SSH 已恢复可达，服务器完整部署测试尚未执行，原代码 CI 仍有 11 项集成失败。该候选不改变已发布 migration，不代表生产部署完成。
 
 1. 同步远端并确认当前分支、工作树和 HEAD。
 2. 阅读本文件、`docs/README.md`、`AGENTS.md` 以及任务涉及模块的现行契约。

@@ -4,6 +4,8 @@
 
 本文面向刚接手项目的开发者或 AI。它补充 `AGENTS.md`、`docs/development/current-state.md` 和 `docs/README.md`，用于快速建立项目上下文；如果与当前运行行为、源码或 OpenAPI 冲突，以真实运行行为和当前源码为准。
 
+> 2026-09-05 本次任务更新：请先读 [PR #8 改分支交付与服务器验证交接](handoffs/2026-09-05-pr8-branch-deployment-handoff.md)。PR #8 已关闭而未合并，活动分支为 `codex/practice-deployment-validation`。本文下方的 2026-09-01 release、账号密钥路径、端口未确认说明和代理地址属于旧交接背景，不作为本次工作机连接依据；当前生产 SHA 为 `3e5526dc`，新分支部署验收未执行。
+
 ## 1. 接手顺序
 
 首次接手先阅读：

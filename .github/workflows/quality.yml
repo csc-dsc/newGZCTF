@@ -97,9 +97,7 @@ jobs:
 
       - name: Verify migration model is current
         run: |
-          dotnet tool install --global dotnet-ef --version 10.0.5
-          export PATH="$PATH:$HOME/.dotnet/tools"
-          echo "$HOME/.dotnet/tools" >> "$GITHUB_PATH"
+          dotnet tool restore
           dotnet ef migrations has-pending-model-changes --project src/GZCTF/GZCTF.csproj --configuration Release --no-build
 
       - name: Verify database query-plan contracts
@@ -201,9 +199,7 @@ jobs:
           dotnet-version: 10.0.x
 
       - name: Install migration bundle tool
-        run: |
-          dotnet tool install --global dotnet-ef --version 10.0.5
-          echo "$HOME/.dotnet/tools" >> "$GITHUB_PATH"
+        run: dotnet tool restore
 
       - name: Download versioned frontend artifact
         uses: actions/download-artifact@v4

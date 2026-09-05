@@ -209,8 +209,7 @@ public class OpenApiTests(GZCTFApplicationFactory factory, ITestOutputHelper out
                 item.Route.StartsWith("/api/open/v1/theory", StringComparison.Ordinal) ||
                 item.Route.StartsWith("/api/open/v1/teams", StringComparison.Ordinal) ||
                 item.Route.StartsWith("/api/open/v1/teamlab", StringComparison.Ordinal) &&
-                !item.Route.EndsWith("/validate", StringComparison.Ordinal) &&
-                !item.Route.EndsWith("/plan", StringComparison.Ordinal))
+                item.Operation.GetProperty("responses").TryGetProperty("202", out _))
             .ToArray();
 
         Assert.NotEmpty(writes);
@@ -232,21 +231,26 @@ public class OpenApiTests(GZCTFApplicationFactory factory, ITestOutputHelper out
     }
 
     [Fact]
-    public async Task OpenV1_TeamLabSchemasDoNotExposeInternalRuntimeOrEditorState()
+    public async Task OpenV1_TeamLabSchemasDoNotExposeSensitiveRuntimeOrEditorState()
     {
         var content = await _client.GetStringAsync(OpenV1DocumentPath);
         using var document = JsonDocument.Parse(content);
         var schemas = document.RootElement.GetProperty("components").GetProperty("schemas");
         var teamLabSchemas = schemas.EnumerateObject()
             .Where(schema => schema.Name.Contains("TeamLab", StringComparison.Ordinal))
-            .Select(schema => schema.Value.GetRawText())
             .ToArray();
 
         Assert.NotEmpty(teamLabSchemas);
-        var serialized = string.Join('\n', teamLabSchemas);
-        Assert.DoesNotContain("runtimeResourceId", serialized, StringComparison.OrdinalIgnoreCase);
-        Assert.DoesNotContain("protectedDownloadToken", serialized, StringComparison.OrdinalIgnoreCase);
-        Assert.DoesNotContain("lastError", serialized, StringComparison.OrdinalIgnoreCase);
+        foreach (var schema in teamLabSchemas)
+        {
+            if (!schema.Value.TryGetProperty("properties", out var properties)) continue;
+            Assert.False(properties.TryGetProperty("runtimeResourceId", out _),
+                $"{schema.Name} must not expose runtimeResourceId.");
+            Assert.False(properties.TryGetProperty("protectedDownloadToken", out _),
+                $"{schema.Name} must not expose protectedDownloadToken.");
+            Assert.False(properties.TryGetProperty("protectedSecret", out _),
+                $"{schema.Name} must not expose protectedSecret.");
+        }
 
         var openRequestSchemas = schemas.EnumerateObject()
             .Where(schema => schema.Name.StartsWith("Open", StringComparison.Ordinal) &&

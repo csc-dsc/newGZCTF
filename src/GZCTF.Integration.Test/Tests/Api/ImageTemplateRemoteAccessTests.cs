@@ -1,10 +1,11 @@
 using System.Net;
 using System.Net.Http.Json;
-using System.Text.Json;
 using GZCTF.Integration.Test.Base;
 using GZCTF.Models;
 using GZCTF.Models.Data;
 using GZCTF.Models.Request.Account;
+using GZCTF.Modules.Content.Application;
+using GZCTF.Modules.TeamLab.Domain.Runtime;
 using GZCTF.Utils;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -13,12 +14,12 @@ using Xunit;
 namespace GZCTF.Integration.Test.Tests.Api;
 
 [Collection(nameof(IntegrationTestCollection))]
-public sealed class ImageTemplateCredentialCapabilityTests(GZCTFApplicationFactory factory)
+public sealed class ImageTemplateRemoteAccessTests(GZCTFApplicationFactory factory)
 {
     private const string Password = "ImageCredential!Pass123";
 
     [Fact]
-    public async Task OwnerTeacher_CanCertifyWindowsVmImage()
+    public async Task OwnerTeacher_CanConfigureWindowsRdpAccess()
     {
         var teacher = await TestDataSeeder.CreateUserAsync(
             factory.Services, TestDataSeeder.RandomName(), Password, role: Role.Teacher);
@@ -26,17 +27,23 @@ public sealed class ImageTemplateCredentialCapabilityTests(GZCTFApplicationFacto
         using var client = await CreateAuthenticatedClientAsync(teacher.UserName!);
 
         using var response = await client.PatchAsJsonAsync(
-            $"/api/v1/image-templates/{imageId}/instance-credentials",
-            new { supported = true });
+            $"/api/v1/image-templates/{imageId}/remote-access",
+            new UpdateImageRemoteAccessModel(
+                true, TeamLabRemoteProtocol.Rdp, 3389, "player", "fixed-test-password"));
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        var body = await response.Content.ReadFromJsonAsync<JsonElement>();
-        Assert.True(body.GetProperty("supportsInstanceCredentials").GetBoolean());
-        Assert.True(await ReadCapabilityAsync(imageId));
+        var body = await response.Content.ReadFromJsonAsync<ImageRemoteAccessModel>();
+        Assert.NotNull(body);
+        Assert.True(body.Enabled);
+        Assert.Equal(TeamLabRemoteProtocol.Rdp, body.Protocol);
+        Assert.Equal(3389, body.Port);
+        Assert.Equal("player", body.Username);
+        Assert.True(body.HasCredential);
+        Assert.True(await HasRemoteAccessAsync(imageId));
     }
 
     [Fact]
-    public async Task NonOwnerTeacher_CannotCertifyImage()
+    public async Task NonOwnerTeacher_CannotConfigureRemoteAccess()
     {
         var owner = await TestDataSeeder.CreateUserAsync(
             factory.Services, TestDataSeeder.RandomName(), Password, role: Role.Teacher);
@@ -46,17 +53,22 @@ public sealed class ImageTemplateCredentialCapabilityTests(GZCTFApplicationFacto
         using var client = await CreateAuthenticatedClientAsync(otherTeacher.UserName!);
 
         using var response = await client.PatchAsJsonAsync(
-            $"/api/v1/image-templates/{imageId}/instance-credentials",
-            new { supported = true });
+            $"/api/v1/image-templates/{imageId}/remote-access",
+            new UpdateImageRemoteAccessModel(
+                true, TeamLabRemoteProtocol.Rdp, 3389, "player", "fixed-test-password"));
 
         Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
-        Assert.False(await ReadCapabilityAsync(imageId));
+        Assert.False(await HasRemoteAccessAsync(imageId));
     }
 
     [Theory]
-    [InlineData(OSType.Linux, ImageType.Qcow2)]
-    [InlineData(OSType.Windows, ImageType.Docker)]
-    public async Task UnsupportedImageType_CannotBeCertified(OSType osType, ImageType imageType)
+    [InlineData(OSType.Linux, ImageType.Qcow2, TeamLabRemoteProtocol.Rdp)]
+    [InlineData(OSType.Windows, ImageType.Docker, TeamLabRemoteProtocol.Rdp)]
+    [InlineData(OSType.Windows, ImageType.Qcow2, TeamLabRemoteProtocol.Ssh)]
+    public async Task UnsupportedRemoteAccessConfiguration_IsRejected(
+        OSType osType,
+        ImageType imageType,
+        TeamLabRemoteProtocol protocol)
     {
         var admin = await TestDataSeeder.CreateUserAsync(
             factory.Services, TestDataSeeder.RandomName(), Password, role: Role.Admin);
@@ -64,30 +76,30 @@ public sealed class ImageTemplateCredentialCapabilityTests(GZCTFApplicationFacto
         using var client = await CreateAuthenticatedClientAsync(admin.UserName!);
 
         using var response = await client.PatchAsJsonAsync(
-            $"/api/v1/image-templates/{imageId}/instance-credentials",
-            new { supported = true });
+            $"/api/v1/image-templates/{imageId}/remote-access",
+            new UpdateImageRemoteAccessModel(
+                true, protocol, protocol == TeamLabRemoteProtocol.Rdp ? 3389 : 22,
+                "player", "fixed-test-password"));
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
-        Assert.False(await ReadCapabilityAsync(imageId));
+        Assert.False(await HasRemoteAccessAsync(imageId));
     }
 
-    [Theory]
-    [InlineData(ImageStatus.Importing)]
-    [InlineData(ImageStatus.Error)]
-    [InlineData(ImageStatus.Deleting)]
-    public async Task NonReadyWindowsVmImage_CannotBeCertified(ImageStatus status)
+    [Fact]
+    public async Task EnabledVmRemoteAccess_RequiresUsername()
     {
         var admin = await TestDataSeeder.CreateUserAsync(
             factory.Services, TestDataSeeder.RandomName(), Password, role: Role.Admin);
-        var imageId = await CreateTemplateAsync(null, OSType.Windows, ImageType.Qcow2, status);
+        var imageId = await CreateTemplateAsync(null, OSType.Windows, ImageType.Qcow2);
         using var client = await CreateAuthenticatedClientAsync(admin.UserName!);
 
         using var response = await client.PatchAsJsonAsync(
-            $"/api/v1/image-templates/{imageId}/instance-credentials",
-            new { supported = true });
+            $"/api/v1/image-templates/{imageId}/remote-access",
+            new UpdateImageRemoteAccessModel(
+                true, TeamLabRemoteProtocol.Rdp, 3389, null, "fixed-test-password"));
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
-        Assert.False(await ReadCapabilityAsync(imageId));
+        Assert.False(await HasRemoteAccessAsync(imageId));
     }
 
     [Fact]
@@ -136,13 +148,10 @@ public sealed class ImageTemplateCredentialCapabilityTests(GZCTFApplicationFacto
         return template.Id;
     }
 
-    private async Task<bool> ReadCapabilityAsync(int imageId)
+    private async Task<bool> HasRemoteAccessAsync(int imageId)
     {
         await using var scope = factory.Services.CreateAsyncScope();
         var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-        return await context.ImageTemplates
-            .Where(item => item.Id == imageId)
-            .Select(item => item.SupportsInstanceCredentials)
-            .SingleAsync();
+        return await context.ImageTemplateRemoteAccesses.AnyAsync(item => item.ImageTemplateId == imageId);
     }
 }

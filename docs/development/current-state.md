@@ -1,6 +1,6 @@
 # YINYU 当前开发状态
 
-更新时间：2026-09-05
+更新时间：2026-09-06
 
 本文件只记录已经核对过的当前事实、已知缺口和下一任务入口。历史计划、阶段审查和现场流水放在 `docs/archive/implementation-records/`，不得用来判断当前代码或服务器状态。
 
@@ -62,7 +62,7 @@
 
 这些事项不能在文档中写成“已上线”或“已签收”：
 
-1. 自主练习已进入 `main`，但仍需在目标生产数据库备份或副本上完成迁移、真实实例、发布、回滚和内容运营验收。
+1. 自主练习已进入 `main`；分支 `codex/practice-deployment-validation` 已在严格隔离空库和 2026-09-04 生产备份副本完成 bundle、启动、登录、外部资产/练习和附件链路验证，但生产切换、真实 Docker 实例、回滚和内容运营验收仍未执行。
 2. Phase 09 TeamLab networking 已在 10.24 前向迁移，当前生产已推进到 `3e5526dc`；Game 23 Docker 创建、入口和销毁链路已实测。双 Worker 故障接管、长期流量留存、复杂服务注入、规模并发和完整跨节点 TeamLab 场景仍需现场签收。
 3. Windows VM 仅按比赛场景支持；平台使用镜像内固定 RDP 账号，不要求普通比赛使用 Cloudbase-Init。仍需对合格镜像完成双实例、RDP/Guacamole、剪贴板、隔离和销毁清理验收。
 4. AWDP 的真实攻击、修补、异常恢复和安全软件干扰场景由授权测试人员按 `docs/yinyu-awdp-manual-acceptance.md` 手工执行。
@@ -86,6 +86,27 @@
 - 同次验收发现并修复 Agent 两阶段同步门禁、心跳 `xmin` 与审计保存竞争、TeamLab `Enable` 配置持久化，以及本机 Docker 缺少 Agent inventory 标签的问题。三个节点均为 Online、Stable、schedulable，Agent SHA 前缀均为 `3747f3535da88623`；历史 image cleanup 记录从 301 条收敛为 0。生产本机 TeamLab control-plane 目标仍明确禁用，远端 Fabric 状态因此为 Disabled，不能表述为 TeamLab Fabric 已验收。
 - 本次发布前回滚备份为 `/opt/gzctf/backups/agent-sync-pre-0a3e1c63-20260904T080316Z`；custom dump SHA-256 `03f7e38a120dcb586f5095b3cf6e7b1c22d7ebbae37a780ef51e0021d819d088`，`pg_restore -l` 可读 2,041 个条目，134 条 migration。最终核心计数为用户 172、战队 76、比赛 22、比赛题目 110、课程 29、练习题 605、理论试卷 4、AWDP 服务 10、附件 217，与该备份一致。
 - 203 公网网关的 Nginx、WireGuard、动态 port-map timer 与 9091/18080 业务独立；本次只更新网关同步器所需配置，不重启或改动 9091/18080 进程。
+- 2026-09-06：`codex/practice-deployment-validation` 的运行候选
+  `9eef8ac12c626672081e81fadbde39946e7d2237` 在 fork Actions run
+  `33979724855` 通过前端 280 项、后端单元 971 项、集成 275 项、迁移模型、
+  7 组查询计划、OpenAPI 向后兼容和完整 Linux release 构建。发布 manifest
+  精确覆盖 372 个文件，前端与 release SHA 一致；发布脚本已修复 Linux dotfile
+  漏记问题。
+- 同一候选在 `10.24.0.27` 的无路由 network namespace 中完成隔离验收：空库
+  bundle 生成 132 条实际可发现迁移，主站以 `www-data` 且无 Docker/libvirt/KVM
+  文件描述符启动，首页、health、OpenAPI、注册登录、权限拒绝、资产上传幂等/
+  冲突、练习导入 operation 和附件摘要回读通过。经 SHA256SUMS 验证的
+  `agent-sync-pre-0a3e1c63-20260904T080316Z` 备份副本保持 134 条历史迁移，
+  候选 bundle 报告无待应用迁移，迁移前后用户 172、战队 76、赛事 22、赛题
+  110、课程 29、练习 605、理论试卷 4、AWDP 服务 10、文件 217、镜像 456
+  均不变。
+- `20260802023000_RemoveDestroyedTeamLabUdpMappings.cs` 缺少 Designer/迁移元数据，
+  不属于上述 132 条 bundle migration；不能把文件存在误报为可执行迁移。严格
+  隔离下内部 `/api/Exercise` 会因 Controller 构造时初始化 Docker provider 而在
+  无 socket 条件返回 500，因此生产副本上的既有练习列表与真实 Docker/KVM/
+  TeamLab 执行链仍为 `NOT_RUN`。本次未挂生产 Docker socket，未切换生产；所有
+  测试进程、容器、volume、release 和目录已删除，随后生产 release、PID、服务
+  重启次数、HTTP 状态、迁移与核心计数复核不变。
 
 ## 6. 当前有用文档
 
@@ -101,7 +122,7 @@
 
 ## 7. 新任务起点
 
-练习模块增量见 [2026-09-05 整理记录](handoffs/2026-09-05-practice-consolidation.md)。用户已明确关闭 PR #8、不合并，改由独立分支交付。当前交接入口为 [分支与服务器验证交接](handoffs/2026-09-05-pr8-branch-deployment-handoff.md)：分支已保存至 `csc-dsc/newGZCTF`，当前凭据对主仓库无推送权限。10.24 SSH 已恢复可达，服务器完整部署测试尚未执行，原代码 CI 仍有 11 项集成失败。该候选不改变已发布 migration，不代表生产部署完成。
+练习模块增量见 [2026-09-05 整理记录](handoffs/2026-09-05-practice-consolidation.md)。用户已明确关闭 PR #8、不合并，改由独立分支交付。当前交接入口为 [分支与服务器验证交接](handoffs/2026-09-05-pr8-branch-deployment-handoff.md)：分支已保存至 `csc-dsc/newGZCTF`，原 11 项集成失败和完整隔离部署验证已闭环；生产切换、真实 Docker/KVM/TeamLab 和内部练习列表仍未授权或缺少隔离执行面，不得写成已部署。
 
 1. 同步远端并确认当前分支、工作树和 HEAD。
 2. 阅读本文件、`docs/README.md`、`AGENTS.md` 以及任务涉及模块的现行契约。

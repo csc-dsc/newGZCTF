@@ -1,13 +1,13 @@
 # newGZCTF 分支交付与服务器验证交接
 
-更新时间：2026-09-05。范围仅限 newGZCTF；本文件是此次新会话接手入口。
+更新时间：2026-09-06。范围仅限 newGZCTF；分支隔离部署续办已完成。
 
 ## 任务目标
 
 - 用户已明确此前的“PR2”实际指 PR #8，不再需要确认编号。
 - 用户要求取消 PR #8，改为独立分支交付，不创建新 PR、不合并 main。
-- 下一会话继续对比该分支与 `10.24.0.27` 生产版本，验证完整代码能否在隔离环境部署运行，修复后只推送分支。
-- 本轮只完成分支交付与文档交接，不继续服务器部署测试；不能把测试授权扩大为生产切换授权。
+- 已对比该分支与 `10.24.0.27` 生产版本，并在无路由隔离环境完成完整发布包、空库和生产备份副本验证；修复只推送分支。
+- 没有创建或重开 PR，没有合并 main，没有生产切换；隔离测试授权未扩大为生产切换授权。
 
 ## 基线与交付
 
@@ -17,6 +17,7 @@
 | 原 PR #8 代码提交 | `5047a8afe31aa77f357d630b206ec5267bb2049b` |
 | 原分支 | `codex/practice-consolidation`，保留，不删除 |
 | 当前分支 | `codex/practice-deployment-validation`，直接继承原 PR 提交，不重写历史 |
+| 隔离运行候选 | `9eef8ac12c626672081e81fadbde39946e7d2237` |
 | 已推送远端 | `fork-ssh`，即 `csc-dsc/newGZCTF` |
 | 主仓库 main | `Y3X1L2/newGZCTF`，核对时为 `bbd5a5d4da8488ad4c32c7bf49523f3136e63831` |
 | PR #8 | 已关闭，`closed_at=2026-09-05T14:56:57Z`，`merged_at=null` |
@@ -30,12 +31,12 @@
 
 ## 当前状态
 
-状态：`in progress`。分支交付已完成，完整部署验收为 `NOT_RUN`。
+状态：`completed (isolated)`，生产部署状态为 `NOT_DEPLOYED`。
 
-- 已完成：生产只读基线、PR 目标确认、PR 关闭、新分支保存、源码差异初步统计。
-- 尚未完成：11 项集成失败定位与修复、完整 CI 门禁、同一提交完整发布包、服务器隔离启动和业务链路验收。
-- 本轮及前一轮服务器核对没有创建测试目录、数据库副本、容器或部署制品，没有生产切换、服务启停或生产数据修改；不存在本任务待清理的远端测试资源。
-- 不把本文件交接动作称为新会话已经运行，也不把先前 CI 结果归属于未来源码提交。
+- 已完成：生产只读基线、PR 关闭与分支保存、11 项集成失败闭环、完整 CI、同 SHA 发布包、严格隔离空库与生产备份副本验证、资源清理和生产复核。
+- 尚未完成：生产切换、真实 Docker/KVM/TeamLab/AWDP、公网入口和回滚演练；这些均未获本轮授权或缺少独立执行面。
+- 隔离测试曾创建 `/opt/gzctf-validation`、两个测试数据库、PostgreSQL/Redis 容器、一个 Docker volume 和降权主站进程；结束时均已删除，根盘恢复约 52.0 GB 可用。
+- 生产 `/opt/gzctf/publish`、`gzctf.service`、`gzctf-agent.service`、生产 PostgreSQL/Redis 和公网入口未切换、未启停、未写入测试数据。
 
 ## 与生产代码的初步对比
 
@@ -58,26 +59,59 @@
 ## 验证证据
 
 CI：https://github.com/Y3X1L2/newGZCTF/actions/runs/33960930409
-以下成绩仅对应原代码提交 `5047a8a`，不是本次新建分支的独立运行结果。
+原提交 `5047a8a` 的 11 项失败已在后续分支提交中闭环。最终独立分支运行证据：
+https://github.com/csc-dsc/newGZCTF/actions/runs/33979724855
 
 | 验证项 | 结果 |
 | --- | --- |
-| 前端门禁 | 通过，280 项测试；既有记录含类型/locale/lint/架构及生产构建 |
+| 前端门禁 | 280/280 通过；locale、lint、strict TypeScript、架构、生产构建和制品预算通过 |
 | 后端单元测试 | 971/971 通过 |
-| 后端集成测试 | 265/276 通过，11 项失败，不能称全绿 |
-| 新 Blob PostgreSQL 回归与生成 OpenAPI 快照 | 通过 |
-| 后续迁移模型、查询计划、向后兼容步骤 | 被集成失败阻断，未执行 |
-| 服务器完整发布与业务验收 | 未执行 |
+| 后端集成测试 | 275/275 通过 |
+| 数据/API 门禁 | migration model、7 组查询计划、OpenAPI 快照与向后兼容通过 |
+| 完整发布包 | 通过；同 SHA 前端 artifact、主站、efbundle、Agent、传感器和 Supervisor 完整构建 |
+| 服务器隔离验收 | 空库与生产备份副本通过受支持链路；真实执行面项目见剩余限制 |
 
-11 项失败待办：
+原 11 项失败闭环：
 
-1. 7 项旧 VM 测试调用 `/instance-credentials`，当前路由是 `/remote-access`；先核对现行契约再修测试。
-2. 2 项 TeamLab 契约冲突：无幂等头的 lease 返回 201，而旧测试一律要求 202；schema 的 `lastError` 与旧禁止断言冲突。不能为全绿擅改产品契约。
-3. 2 项图片 GET/DELETE 返回 500，尚未取得确定根因。`ImageStorage` 初始化 `/var/lib/gzctf/images` 的权限问题只是候选，需要异常栈验证。
+1. 旧 `/instance-credentials` 用例已改为现行 `/remote-access` 合同，并覆盖所有权、RDP/SSH/容器类型和必填字段。
+2. TeamLab OpenAPI 门禁已区分同步幂等资源写与持久化异步 operation，并按结构检查敏感字段、保留公开 editor layout 合同。
+3. 图片 GET/DELETE 的 500 已由 Linux CI 证实为测试工厂未隔离 `KvmSettings:ImageStoragePath`；测试现使用唯一临时目录。
+
+## 隔离部署结果
+
+- release：`practice-validation-9eef8ac12c626672081e81fadbde39946e7d2237`。
+- tar.gz：258,732,482 bytes，SHA-256
+  `3c3a2161c9589eb6d4f6f75e0eb4d6b826c1079181ec8e905d526d6303a4ce87`。
+- 外部 manifest：SHA-256
+  `a004783a7a06a991bb576de42cb09d2267afeca05d9200b1ee10bd31fcc2a70c`；
+  372 个列出文件全部按长度和 SHA-256 复核，archive 仅额外包含 manifest 自身。
+- 首轮 manifest 漏掉 `wwwroot/.keep`，服务器严格校验拒绝后已修复
+  `build-gzctf-release.ps1` 使用 `Get-ChildItem -Force`；失败 release 已删除。
+- 空库 bundle 成功生成 132 条可发现 migration，Exercise、Theory、TeamLab 表存在；
+  首页、health、OpenAPI 均 200。注册/登录、匿名 401、受限 token 403、资产上传
+  201 幂等复用、请求冲突 409、资产读取、练习导入 202 幂等复用、operation
+  `Succeeded`、练习读取和附件内容摘要均通过。
+- 生产备份 `agent-sync-pre-0a3e1c63-20260904T080316Z` 重新通过全部
+  `SHA256SUMS`，dump list 为 2,041 条；副本 bundle 报告 `No migrations were
+  applied`，迁移保持 134/head `20260816192540_TeamLabCapabilityClosure`，核心计数
+  前后不变。
+- 主站以 `www-data` 在 PostgreSQL 容器的 `--network none` namespace 中运行，
+  路由数 0，未发布 18080/18081，且无 Docker、libvirt 或 KVM 文件描述符。
+  最小 Ubuntu 容器缺 ICU，未安装软件；实际主站复用宿主已安装 runtime/ICU，
+  进入 network namespace 后立即降权并启用 `no-new-privs`。
+- 依赖启动顺序已实测：Redis 必须先 ready，随后主站约 16 秒达到 health 200。
+  初次反序启动形成的等待进程已停止，不属于最终通过路径。
+- 严格隔离的生产副本上 `/api/Exercise` 在 Controller 构造阶段初始化
+  `DockerProvider`，因故意不提供 Docker socket 返回 500；因此既有练习列表和
+  真实容器实例为 `NOT_RUN`，不能拿此结果冒充生产失败或成功。外部 Exercise
+  内容链路已在空库通过；真实运行链需独立 Docker 执行面。
+- 清理后重新核对生产：release `3e5526dc1ce336ac5545faacd49a9c0d1ec7ab58`、
+  主站 PID 2692、Agent PID 2691、两者 NRestarts 0，首页/health/OpenAPI 200，
+  生产 migration 134、用户 172、练习 605、文件 217、镜像 456，均与测试前一致。
 
 ## 服务器只读基线
 
-以下为本次任务前段的 SSH 实测快照，接手后需重新检查；不表示已部署候选分支。
+以下为隔离测试清理后的最终 SSH 复核；不表示已部署候选分支。
 
 | 项目 | 实测 |
 | --- | --- |
@@ -89,7 +123,7 @@ CI：https://github.com/Y3X1L2/newGZCTF/actions/runs/33960930409
 | 服务 | `gzctf.service` PID 2692、`gzctf-agent.service` PID 2691，均 active/running、NRestarts 0 |
 | 数据库 | 134 条 migration，head `20260816192540_TeamLabCapabilityClosure`；练习 605、ImageTemplate 456 |
 | 数据库大小 | 28,145,335,319 bytes，约 26.2 GiB |
-| 资源 | 根盘剩余约 49G；内存约 31GB、可用约 29GB |
+| 资源 | 根盘剩余约 52.0 GB；内存约 31GB、测试前可用约 29GB |
 | .NET | SDK 10.0.300；ASP.NET/Core runtime 10.0.8；生产 runtimeconfig 请求 10.0.0 |
 | 基础依赖 | Docker 存在；生产 PostgreSQL 16 / Redis 7 容器运行 |
 | 可用镜像 | 已缓存 postgres:16-alpine、redis:7-alpine、ubuntu:22.04、busybox:latest；未发现 dotnet 基础镜像 |
@@ -109,15 +143,13 @@ CI：https://github.com/Y3X1L2/newGZCTF/actions/runs/33960930409
 7. 真正监听配置为 `ServerPort`/`MetricPort`；`/healthz` 在 MetricPort（默认 3001），不是 8080。空库完整 Web 验收不等于 Docker/KVM/TeamLab 实际执行链通过。
 8. 构建入口为 `scripts/deployment/build-gzctf-release.ps1`，输出主站、efbundle、Agent 和相关组件及清单。默认 `FrontendBuildMode=Source` 可能自动安装依赖；未获安装许可前，应使用同提交前端 artifact 和 `FrontendBuildMode=Artifact`，不能用旧前端或 Skip 冒充完整包。
 
-## 下一会话执行顺序
+## 后续工作边界
 
-1. 先读本文件、`AGENTS.md`、`current-state.md`，核对工作树、远端分支与主仓库权限。不重开或新建 PR。
-2. 从 `codex/practice-deployment-validation` 继续现有任务，不从旧 PR #6 覆盖代码。详细复核生产 SHA 与候选 SHA 的 diff、迁移集合、前端制品和运行需求。
-3. 取 CI 异常栈，按现行契约修复 11 项失败，完整跑门禁。新增依赖/软件安装必须先征得用户同意并明确路径。
-4. 设计可执行的隔离配置和磁盘预算，记录测试资源清单；先验证隔离，再构建同 SHA 完整包和开展启动、迁移、登录、权限、上传幂等、题目导入与附件读取测试。
-5. Docker/KVM/TeamLab 必须另有隔离执行资源才能实测；不足时明确写 NOT_RUN，不冒用生产节点。
-6. 核对生产链接、manifest、服务与迁移未被测试改变，报告证据、剩余缺口及服务器测试资源实际状态。
-7. 提交修复与脱敏报告，正常 push 此分支，验证远端 SHA；不合并 main、不创建 PR，未获明确生产切换授权不得上线。
+1. 本次隔离部署任务无需继续；重新开展时先核对分支 tip、CI run、生产 SHA 和服务器资源，不能复用聊天中的临时值。
+2. 只有用户明确授权生产发布后，才按维护窗口手册创建新鲜备份、构建最终 tip release、执行真实 Docker 练习链、回滚预演和原子切换。
+3. 若要在不接触生产 Docker 的条件下签收内部 `/api/Exercise`，必须提供独立 Docker 执行面，或另立任务解除只读列表 Controller 对 `DockerProvider` 构造副作用的依赖。
+4. `20260802023000_RemoveDestroyedTeamLabUdpMappings.cs` 的迁移注册缺口必须作为独立 migration reconciliation 任务处理；不得补同 ID 的猜测 Designer，也不得在生产手改 history。
+5. 保持 branch-only 交付：不重开 PR #8、不创建新 PR、不合并 main、不切换生产。
 
 ## 本地工具与资料
 

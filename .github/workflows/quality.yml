@@ -4,7 +4,6 @@ on:
   push:
     branches:
       - main
-      - codex/practice-deployment-validation
   pull_request:
   workflow_dispatch:
 
@@ -177,59 +176,3 @@ jobs:
           name: gzctf-client-${{ github.sha }}
           path: src/GZCTF/ClientApp/build
           if-no-files-found: error
-
-  isolated-release:
-    name: Build isolated deployment release
-    if: github.ref == 'refs/heads/codex/practice-deployment-validation'
-    needs:
-      - backend
-      - frontend
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
-
-    steps:
-      - name: Check out source
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Set up .NET
-        uses: actions/setup-dotnet@v4
-        with:
-          dotnet-version: 10.0.x
-
-      - name: Install migration bundle tool
-        run: dotnet tool restore
-
-      - name: Download versioned frontend artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: gzctf-client-${{ github.sha }}
-          path: src/GZCTF/ClientApp/build
-
-      - name: Verify frontend artifact identity
-        shell: pwsh
-        run: |
-          $manifest = Get-Content -Raw src/GZCTF/ClientApp/build/frontend-manifest.json | ConvertFrom-Json
-          if ($manifest.gitSha -ne $env:GITHUB_SHA) {
-            throw "Frontend artifact SHA $($manifest.gitSha) does not match $env:GITHUB_SHA."
-          }
-
-      - name: Build complete Linux release
-        shell: pwsh
-        env:
-          FrontendBuildMode: Artifact
-          FrontendArtifactDir: ${{ github.workspace }}/src/GZCTF/ClientApp/build/
-        run: >-
-          ./scripts/deployment/build-gzctf-release.ps1
-          -ReleaseId "practice-validation-${{ github.sha }}"
-
-      - name: Upload isolated deployment release
-        uses: actions/upload-artifact@v4
-        with:
-          name: gzctf-isolated-release-${{ github.sha }}
-          path: |
-            artifacts/releases/practice-validation-${{ github.sha }}/practice-validation-${{ github.sha }}.tar.gz
-            artifacts/releases/practice-validation-${{ github.sha }}/release-manifest.json
-          if-no-files-found: error
-          retention-days: 7

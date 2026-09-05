@@ -84,7 +84,7 @@ SELECT ('10000000-0000-4000-8000-' || lpad(value::text, 12, '0'))::uuid,
        'benchmark-tenant-' || value % 100,
        'benchmark-fairness-' || value % 100,
        'benchmark-subject-' || value,
-       CASE value % 4
+       CASE value % 5
            WHEN 0 THEN CURRENT_TIMESTAMP + make_interval(secs => value % 3600)
            WHEN 1 THEN CURRENT_TIMESTAMP - make_interval(secs => value % 3600)
        END,

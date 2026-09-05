@@ -37,8 +37,8 @@ LIMIT 100;
 EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON)
 SELECT "Id", "Kind", "Status", "CreatedAt"
 FROM "DeploymentQueueTickets"
-WHERE "Status" = 3 AND ("CreatedAt", "Id") < (CURRENT_TIMESTAMP, 'ffffffff-ffff-ffff-ffff-ffffffffffff'::uuid)
-ORDER BY "CreatedAt" DESC, "Id" DESC
+WHERE "Status" = 0 AND ("NotBeforeAt" IS NULL OR "NotBeforeAt" <= CURRENT_TIMESTAMP)
+ORDER BY CASE WHEN "Operation" = 1 THEN 1 ELSE 0 END, "CreatedAt", "Id"
 LIMIT 100;
 
 \echo __PLAN__:teamlab-flow

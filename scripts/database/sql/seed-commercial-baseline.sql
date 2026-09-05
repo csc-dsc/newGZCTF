@@ -74,7 +74,7 @@ FROM generate_series(1, (SELECT theory_count FROM phase4_seed_config)) AS value;
 
 INSERT INTO "DeploymentQueueTickets"
     ("Id", "Kind", "Status", "DockerSlots", "VmSlots", "ActiveIdentity", "TenantKey", "FairnessKey",
-     "SubjectConcurrencyKey", "CreatedAt", "CompletedAt")
+     "SubjectConcurrencyKey", "NotBeforeAt", "CreatedAt", "CompletedAt")
 SELECT ('10000000-0000-4000-8000-' || lpad(value::text, 12, '0'))::uuid,
        1 + value % 4,
        value % 6,
@@ -84,6 +84,10 @@ SELECT ('10000000-0000-4000-8000-' || lpad(value::text, 12, '0'))::uuid,
        'benchmark-tenant-' || value % 100,
        'benchmark-fairness-' || value % 100,
        'benchmark-subject-' || value,
+       CASE value % 4
+           WHEN 0 THEN CURRENT_TIMESTAMP + make_interval(secs => value % 3600)
+           WHEN 1 THEN CURRENT_TIMESTAMP - make_interval(secs => value % 3600)
+       END,
        CURRENT_TIMESTAMP - make_interval(secs => value % 15552000),
        CASE WHEN value % 6 >= 3 THEN CURRENT_TIMESTAMP - make_interval(secs => value % 15552000) END
 FROM generate_series(1, (SELECT queue_count FROM phase4_seed_config)) AS value;

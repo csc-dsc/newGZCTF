@@ -33,13 +33,13 @@ public sealed class ImageTemplateRemoteAccessTests(GZCTFApplicationFactory facto
                 true, TeamLabRemoteProtocol.Rdp, 3389, "player", "fixed-test-password"));
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        var body = await response.Content.ReadFromJsonAsync<ImageRemoteAccessModel>();
-        Assert.NotNull(body);
-        Assert.True(body.Enabled);
-        Assert.Equal(TeamLabRemoteProtocol.Rdp, body.Protocol);
-        Assert.Equal(3389, body.Port);
-        Assert.Equal("player", body.Username);
-        Assert.True(body.HasCredential);
+        var body = await response.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.True(body.GetProperty("enabled").GetBoolean());
+        Assert.Equal("rdp", body.GetProperty("protocol").GetString());
+        Assert.Equal(3389, body.GetProperty("port").GetInt32());
+        Assert.Equal("player", body.GetProperty("username").GetString());
+        Assert.True(body.GetProperty("hasCredential").GetBoolean());
+        Assert.Equal(JsonValueKind.Number, body.GetProperty("updatedAt").ValueKind);
         Assert.True(await HasRemoteAccessAsync(imageId));
     }
 

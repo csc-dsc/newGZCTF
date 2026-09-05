@@ -231,7 +231,7 @@ public class OpenApiTests(GZCTFApplicationFactory factory, ITestOutputHelper out
     }
 
     [Fact]
-    public async Task OpenV1_TeamLabSchemasDoNotExposeSensitiveRuntimeOrEditorState()
+    public async Task OpenV1_TeamLabSchemasPreserveEditorAndHideSensitiveRuntimeState()
     {
         var content = await _client.GetStringAsync(OpenV1DocumentPath);
         using var document = JsonDocument.Parse(content);
@@ -254,12 +254,12 @@ public class OpenApiTests(GZCTFApplicationFactory factory, ITestOutputHelper out
 
         var openRequestSchemas = schemas.EnumerateObject()
             .Where(schema => schema.Name.StartsWith("Open", StringComparison.Ordinal) &&
-                             schema.Name.Contains("TeamLabTopologyModel", StringComparison.Ordinal))
-            .Select(schema => schema.Value.GetRawText())
+                              schema.Name.Contains("TeamLabTopologyModel", StringComparison.Ordinal))
             .ToArray();
         Assert.NotEmpty(openRequestSchemas);
         Assert.All(openRequestSchemas, schema =>
-            Assert.DoesNotContain("editor", schema, StringComparison.OrdinalIgnoreCase));
+            Assert.True(schema.Value.GetProperty("properties").TryGetProperty("editor", out _),
+                $"{schema.Name} must preserve the published editor layout contract."));
 
         var problemSchema = schemas.GetProperty("ExternalApiProblemDetailsModel");
         Assert.Contains("\"code\"", problemSchema.GetRawText(), StringComparison.Ordinal);

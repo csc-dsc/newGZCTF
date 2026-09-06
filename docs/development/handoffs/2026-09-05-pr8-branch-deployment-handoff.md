@@ -7,7 +7,7 @@
 - 用户已明确此前的“PR2”实际指 PR #8，不再需要确认编号。
 - 用户要求取消 PR #8，改为独立分支交付，不创建新 PR、不合并 main。
 - 已对比该分支与 `10.24.0.27` 生产版本，并在无路由隔离环境完成完整发布包、空库和生产备份副本验证；修复只推送分支。
-- 没有创建或重开 PR，没有合并 main，没有生产切换；隔离测试授权未扩大为生产切换授权。
+- 没有创建或重开 PR，没有合并 main；用户随后明确授权生产切换，已按维护窗口完成并保留备份与回退 release。
 
 ## 基线与交付
 
@@ -31,12 +31,12 @@
 
 ## 当前状态
 
-状态：`completed (isolated)`，生产部署状态为 `NOT_DEPLOYED`。
+状态：`deployed`。隔离验证与 `10.24.0.27` 生产切换已完成，真实登录和 Docker 实例仍为 `NOT_RUN`。
 
 - 已完成：生产只读基线、PR 关闭与分支保存、11 项集成失败闭环、完整 CI、同 SHA 发布包、严格隔离空库与生产备份副本验证、资源清理和生产复核。
-- 尚未完成：生产切换、真实 Docker/KVM/TeamLab/AWDP、公网入口和回滚演练；这些均未获本轮授权或缺少独立执行面。
+- 尚未完成：真实登录、Docker/KVM/TeamLab/AWDP、公网入口和回滚演练；浏览器附着受现有 Edge 设置阻断，`.31` 节点为发布前既有离线状态。
 - 隔离测试曾创建 `/opt/gzctf-validation`、两个测试数据库、PostgreSQL/Redis 容器、一个 Docker volume 和降权主站进程；结束时均已删除，根盘恢复约 52.0 GB 可用。
-- 生产 `/opt/gzctf/publish`、`gzctf.service`、`gzctf-agent.service`、生产 PostgreSQL/Redis 和公网入口未切换、未启停、未写入测试数据。
+- 生产 `/opt/gzctf/publish` 已原子切换，主站与本机 Agent 已重启；生产 PostgreSQL/Redis 未重启，bundle 未应用 migration，公网入口未改配置。
 
 ## 与生产代码的初步对比
 
@@ -109,9 +109,38 @@ https://github.com/csc-dsc/newGZCTF/actions/runs/33979724855
   主站 PID 2692、Agent PID 2691、两者 NRestarts 0，首页/health/OpenAPI 200，
   生产 migration 134、用户 172、练习 605、文件 217、镜像 456，均与测试前一致。
 
+## 生产切换结果
+
+- 用户在隔离验收完成后明确授权正式切换；运行候选仍为已完整验证的
+  `9eef8ac12c626672081e81fadbde39946e7d2237`，分支后续 tip 只含 CI 清理和文档。
+- 维护前活动票据、容器、VM、TeamLab runtime 均为 0；有 1 场比赛处于活动时间，
+  因此先完成候选下载和验签，再开始服务停机。
+- 发布前备份：
+  `/opt/gzctf/backups/practice-deployment-pre-9eef8ac-20260906T032027Z`，总计
+  1,359,448,361 bytes。数据库 dump 776,051,891 bytes、2,063 个 catalog 条目，
+  SHA-256 `fa62f3473dc3693fb23a1be4ae1c0285e6800289b3a2670160b6c9904d26284d`；
+  `SHA256SUMS` 全部通过，catalog 包含 DataProtectionKeys。旧 release、共享文件、
+  schema、迁移历史、核心计数、配置、systemd 和 Nginx 均在服务器本机保存。
+- bundle 未应用 migration；数据库保持 134/head
+  `20260816192540_TeamLabCapabilityClosure`，切换前后核心计数完全一致。
+- `/opt/gzctf/publish` 当前指向
+  `/opt/gzctf/releases/practice-validation-9eef8ac12c626672081e81fadbde39946e7d2237/publish`；
+  `/opt/gzctf/publish.previous` 指向原 `3e5526dc` release。服务停机从
+  `2026-09-06T03:20:27Z` 至候选健康 `03:26:46Z`，约 6 分 19 秒。
+- 主站 PID 36118、Agent PID 36120，均 active/running、NRestarts 0。首页、登录页、
+  `/practice`、配置、OpenAPI、API docs、health、metrics、SPA 入口和共享附件内容
+  SHA-256 通过；发布后 journal 无 error。
+- 发布后核心计数仍为用户 172、战队 76、赛事 22、赛题 110、课程 29、练习 605、
+  理论试卷 4、AWDP 服务 10、文件 217、镜像 456；活动队列和镜像工作为 0。
+- Local Server 与 `worker-10.24.0.30` 在线可调度；`worker-10.24.0.31` 心跳已中断
+  约 25.9 小时，早于发布。远端 Worker Agent 未同步，本轮只更新 10.24.0.27。
+- browser-harness 原始错误要求在现有 Edge 的 `chrome://inspect/#remote-debugging`
+  允许 remote debugging；未改用 Playwright/CDP，也未新开浏览器。因此真实登录和
+  Docker 练习实例没有执行，继续标记 `NOT_RUN`。
+
 ## 服务器只读基线
 
-以下为隔离测试清理后的最终 SSH 复核；不表示已部署候选分支。
+以下表格是生产切换前基线；最终生产事实见上节。
 
 | 项目 | 实测 |
 | --- | --- |
@@ -145,11 +174,11 @@ https://github.com/csc-dsc/newGZCTF/actions/runs/33979724855
 
 ## 后续工作边界
 
-1. 本次隔离部署任务无需继续；重新开展时先核对分支 tip、CI run、生产 SHA 和服务器资源，不能复用聊天中的临时值。
-2. 只有用户明确授权生产发布后，才按维护窗口手册创建新鲜备份、构建最终 tip release、执行真实 Docker 练习链、回滚预演和原子切换。
+1. 本次隔离部署和生产切换无需继续；重新开展时先核对分支 tip、CI run、生产 SHA 和服务器资源，不能复用聊天中的临时值。
+2. 生产已切到 `9eef8ac`；回退时使用 `/opt/gzctf/publish.previous` 和本次新鲜备份，不执行 EF Down 或手改 migration history。
 3. 若要在不接触生产 Docker 的条件下签收内部 `/api/Exercise`，必须提供独立 Docker 执行面，或另立任务解除只读列表 Controller 对 `DockerProvider` 构造副作用的依赖。
 4. `20260802023000_RemoveDestroyedTeamLabUdpMappings.cs` 的迁移注册缺口必须作为独立 migration reconciliation 任务处理；不得补同 ID 的猜测 Designer，也不得在生产手改 history。
-5. 保持 branch-only 交付：不重开 PR #8、不创建新 PR、不合并 main、不切换生产。
+5. 保持 branch-only 交付：不重开 PR #8、不创建新 PR、不合并 main；后续生产操作必须再次获得明确授权。
 
 ## 本地工具与资料
 

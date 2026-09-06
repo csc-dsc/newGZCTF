@@ -10,8 +10,8 @@
 | --- | --- |
 | 仓库 | `https://github.com/Y3X1L2/newGZCTF.git` |
 | 稳定分支 | `main` |
-| 当前生产基线 | release `docker-provisioning-inventory-3e5526dc-20260904T093342Z`，提交 `3e5526dc1ce336ac5545faacd49a9c0d1ec7ab58`，数据库 migration head `20260816192540_TeamLabCapabilityClosure` |
-| 应用回退基线 | 上一独立 release `docker-provisioning-converged-77ae1757-20260904T091328Z`，提交 `77ae175785e358b6b3739fe8cd6118d3039b24fe`；仅用于启动失败时紧急切回，回退后本机 Docker inventory 标签缺口会重新存在，必须暂停新实例创建；数据回滚点见本文件第 5 节 |
+| 当前生产基线 | release `practice-validation-9eef8ac12c626672081e81fadbde39946e7d2237`，提交 `9eef8ac12c626672081e81fadbde39946e7d2237`，数据库 migration head `20260816192540_TeamLabCapabilityClosure` |
+| 应用回退基线 | `/opt/gzctf/publish.previous` 指向 release `docker-provisioning-inventory-3e5526dc-20260904T093342Z`，提交 `3e5526dc1ce336ac5545faacd49a9c0d1ec7ab58`；本次发布前完整备份见本文件第 5 节 |
 | 当前开发基线 | `main`；Phase 09 TeamLab networking、迁移恢复和 Game 23 Docker provisioning 修复均已合入；新任务从最新 `origin/main` 创建 `codex/<task-name>` 功能分支 |
 | 正式工作区 | 本次工作机为 `D:\newGZCTF` |
 | 工作树结构 | 本次工作机只保留一个活动 worktree，分支为 `codex/practice-deployment-validation`；并行任务按 `AGENTS.md` 使用独立 worktree，不将服务器目录作为代码基线 |
@@ -62,8 +62,8 @@
 
 这些事项不能在文档中写成“已上线”或“已签收”：
 
-1. 自主练习已进入 `main`；分支 `codex/practice-deployment-validation` 已在严格隔离空库和 2026-09-04 生产备份副本完成 bundle、启动、登录、外部资产/练习和附件链路验证，但生产切换、真实 Docker 实例、回滚和内容运营验收仍未执行。
-2. Phase 09 TeamLab networking 已在 10.24 前向迁移，当前生产已推进到 `3e5526dc`；Game 23 Docker 创建、入口和销毁链路已实测。双 Worker 故障接管、长期流量留存、复杂服务注入、规模并发和完整跨节点 TeamLab 场景仍需现场签收。
+1. 自主练习已进入 `main`；分支候选 `9eef8ac` 已完成隔离验证并切入 `10.24.0.27` 生产。真实 Docker 练习实例、浏览器登录态、回滚演练和内容运营验收仍未执行，不能将页面/健康检查等同于完整运行链签收。
+2. Phase 09 TeamLab networking 已在 10.24 前向迁移，相关修复包含在当前生产 `9eef8ac`；Game 23 Docker 创建、入口和销毁链路已实测。双 Worker 故障接管、长期流量留存、复杂服务注入、规模并发和完整跨节点 TeamLab 场景仍需现场签收。
 3. Windows VM 仅按比赛场景支持；平台使用镜像内固定 RDP 账号，不要求普通比赛使用 Cloudbase-Init。仍需对合格镜像完成双实例、RDP/Guacamole、剪贴板、隔离和销毁清理验收。
 4. AWDP 的真实攻击、修补、异常恢复和安全软件干扰场景由授权测试人员按 `docs/yinyu-awdp-manual-acceptance.md` 手工执行。
 5. 统一认证对接方的门户源码不在本仓库；平台保留 Portal SSO 适配，跨网联调需在目标环境验证。
@@ -107,6 +107,28 @@
   TeamLab 执行链仍为 `NOT_RUN`。本次未挂生产 Docker socket，未切换生产；所有
   测试进程、容器、volume、release 和目录已删除，随后生产 release、PID、服务
   重启次数、HTTP 状态、迁移与核心计数复核不变。
+- 2026-09-06 生产维护窗口：在确认活动部署票据、容器、VM 和 TeamLab runtime
+  均为 0 后，停止主站与 Agent，于服务器保存发布前备份
+  `/opt/gzctf/backups/practice-deployment-pre-9eef8ac-20260906T032027Z`。备份总计
+  1,359,448,361 bytes，数据库 dump 776,051,891 bytes、2,063 个 catalog 条目，
+  SHA-256 为 `fa62f3473dc3693fb23a1be4ae1c0285e6800289b3a2670160b6c9904d26284d`；
+  同时保存 schema、迁移历史、核心计数、旧 release、共享文件、应用配置、
+  systemd 和 Nginx，`SHA256SUMS` 全部通过且 catalog 包含 DataProtectionKeys。
+- 同一窗口中候选 bundle 报告 `No migrations were applied`，迁移保持 134/head
+  `20260816192540_TeamLabCapabilityClosure`，备份前后核心计数一致；随后原子切换
+  `/opt/gzctf/publish` 至 `practice-validation-9eef8ac.../publish`，旧 `3e5526dc`
+  release 保留在 `/opt/gzctf/publish.previous`。服务停止于 `03:20:27Z`，新 release
+  于 `03:26:46Z` 健康，维护窗口约 6 分 19 秒。
+- 发布后主站 PID 36118、Agent PID 36120，均 active/running、NRestarts 0；主站、
+  登录页、练习路由、配置、OpenAPI、API docs、health、metrics 和共享附件摘要检查
+  通过。manifest 372 个文件，主站/Agent/前端摘要与提交 `9eef8ac` 一致；数据库仍为
+  用户 172、战队 76、赛事 22、赛题 110、课程 29、练习 605、理论试卷 4、AWDP
+  服务 10、文件 217、镜像 456，活动票据和镜像工作均为 0，journal 无 error。
+- 节点现场状态为 Local Server 与 `worker-10.24.0.30` 在线可调度；
+  `worker-10.24.0.31` 心跳已中断约 25.9 小时，早于本次发布，不归因于切换。
+  browser-harness 因现有 Edge 未允许 remote debugging 而无法附着，未改用其他
+  浏览器工具；因此真实登录和 Docker 练习实例仍为 `NOT_RUN`。本次只切换
+  `10.24.0.27` 主站与本机 Agent，未同步远端 Worker Agent。
 
 ## 6. 当前有用文档
 
@@ -122,7 +144,7 @@
 
 ## 7. 新任务起点
 
-练习模块增量见 [2026-09-05 整理记录](handoffs/2026-09-05-practice-consolidation.md)。用户已明确关闭 PR #8、不合并，改由独立分支交付。当前交接入口为 [分支与服务器验证交接](handoffs/2026-09-05-pr8-branch-deployment-handoff.md)：分支已保存至 `csc-dsc/newGZCTF`，原 11 项集成失败和完整隔离部署验证已闭环；生产切换、真实 Docker/KVM/TeamLab 和内部练习列表仍未授权或缺少隔离执行面，不得写成已部署。
+练习模块增量见 [2026-09-05 整理记录](handoffs/2026-09-05-practice-consolidation.md)。用户已明确关闭 PR #8、不合并，改由独立分支交付。当前交接入口为 [分支与服务器验证交接](handoffs/2026-09-05-pr8-branch-deployment-handoff.md)：分支保存于 `csc-dsc/newGZCTF`，原 11 项失败、隔离部署和 `10.24.0.27` 生产切换已闭环；下一步应优先恢复或确认 `.31` 节点、补真实登录和 Docker 练习实例验收，再决定是否同步远端 Agent。不得创建 PR 或把仍为 `NOT_RUN` 的执行面写成已签收。
 
 1. 同步远端并确认当前分支、工作树和 HEAD。
 2. 阅读本文件、`docs/README.md`、`AGENTS.md` 以及任务涉及模块的现行契约。
